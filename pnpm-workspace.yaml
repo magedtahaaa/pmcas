@@ -1,0 +1,10 @@
+# Keep the project-local dependency layout consistent across pnpm runs.
+enableGlobalVirtualStore: false
+verifyDepsBeforeRun: error
+
+# Security fixes for transitive dependencies; revalidate when upgrading parents.
+overrides:
+  'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
+  browserslist: 4.29.4
+  'baseline-browser-mapping@>=2.0.0 <2.11.0': 2.11.32
+  'postcss-selector-parser@<7.1.6': 7.1.6

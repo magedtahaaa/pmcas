@@ -1,0 +1,433 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BusinessModel {
+  ECOMMERCE
+  LEAD_GENERATION
+  MARKETPLACE
+  SAAS
+  SERVICE
+  OTHER
+}
+
+enum AuditSectionKey {
+  MEASUREMENT_DATA_AUDIT
+  FUNNEL_LEAKAGE_AUDIT
+  CUSTOMER_MARKET_RESEARCH
+  OFFER_PRICING_MESSAGING
+  BRAND_POSITIONING
+  CHANNEL_EXPANSION
+  TEAM_WORKFLOW_ALIGNMENT
+  EXPERIMENTATION_ROADMAP
+}
+
+enum RiskLevel {
+  STRONG
+  NEEDS_IMPROVEMENT
+  RISK_AREA
+  CRITICAL_GAP
+}
+
+enum ConfidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FindingStatus {
+  DRAFT
+  ACCEPTED
+  EDITED
+  DISMISSED
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RecommendationStatus {
+  DRAFT
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  DISMISSED
+}
+
+enum ExperimentStatus {
+  BACKLOG
+  PLANNED
+  RUNNING
+  COMPLETED
+  PAUSED
+  REJECTED
+}
+
+enum SuggestedOwner {
+  MARKETING_MANAGER
+  MEDIA_BUYER
+  TRACKING_SPECIALIST
+  WEB_DEVELOPER
+  CRO_SPECIALIST
+  COPYWRITER
+  DESIGNER
+  SALES_TEAM
+  CUSTOMER_SUPPORT
+  CRM_SPECIALIST
+  ECOMMERCE_MANAGER
+  OPERATIONS_TEAM
+}
+
+enum ExportType {
+  AUDIT_SUMMARY
+  SECTION_SCORES
+  FINDINGS
+  RECOMMENDATIONS
+  EXPERIMENTS
+  ACTION_PLAN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Brand {
+  id                String        @id @default(cuid())
+  name              String
+  industry          String?
+  website           String?
+  market            String?
+  businessModel     BusinessModel @default(OTHER)
+  monthlyAdSpend    Decimal?      @db.Decimal(12, 2)
+  monthlyRevenue    Decimal?      @db.Decimal(12, 2)
+  averageOrderValue Decimal?      @db.Decimal(12, 2)
+  mainChannels      String[]      @default([])
+  mainGoal          String?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  metrics     BrandMetric[]
+  dataImports DataImport[]
+  audits      Audit[]
+
+  @@index([businessModel])
+  @@index([market])
+}
+
+model BrandMetric {
+  id        String   @id @default(cuid())
+  brandId   String
+  name      String
+  value     Decimal  @db.Decimal(18, 4)
+  unit      String?
+  source    String?
+  date      DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@index([name])
+  @@index([date])
+}
+
+model DataImport {
+  id         String   @id @default(cuid())
+  brandId    String
+  fileName   String
+  fileType   String
+  source     String?
+  rowCount   Int      @default(0)
+  uploadedAt DateTime @default(now())
+  notes      String?
+
+  brand        Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  importedRows ImportedRow[]
+
+  @@index([brandId])
+  @@index([uploadedAt])
+}
+
+model ImportedRow {
+  id             String   @id @default(cuid())
+  dataImportId   String
+  rowIndex       Int
+  rawData        Json
+  normalizedData Json?
+  createdAt      DateTime @default(now())
+
+  dataImport DataImport @relation(fields: [dataImportId], references: [id], onDelete: Cascade)
+
+  @@unique([dataImportId, rowIndex])
+  @@index([dataImportId])
+}
+
+model AuditTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  version     String
+  description String?
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sections AuditSection[]
+  audits   Audit[]
+
+  @@unique([name, version])
+  @@index([isActive])
+}
+
+model AuditSection {
+  id          String          @id @default(cuid())
+  templateId  String
+  sectionKey  AuditSectionKey
+  name        String
+  description String?
+  weight      Float           @default(1)
+  sortOrder   Int
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  template AuditTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  criteria AuditCriteria[]
+
+  @@unique([templateId, sectionKey])
+  @@unique([templateId, sortOrder])
+  @@index([sectionKey])
+}
+
+model AuditCriteria {
+  id               String   @id @default(cuid())
+  sectionId        String
+  title            String
+  description      String?
+  weight           Float    @default(1)
+  scoringGuidance  String?
+  evidenceRequired Boolean  @default(false)
+  ruleKey          String?
+  sortOrder        Int
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  section   AuditSection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  responses AuditResponse[]
+
+  @@unique([sectionId, sortOrder])
+  @@index([sectionId])
+  @@index([ruleKey])
+}
+
+model Audit {
+  id                String          @id @default(cuid())
+  brandId           String
+  templateId        String
+  title             String
+  auditDate         DateTime        @default(now())
+  overallScore      Float?
+  overallRisk       RiskLevel?
+  overallConfidence ConfidenceLevel @default(LOW)
+  scalingReadiness  String?
+  summary           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  template        AuditTemplate    @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  responses       AuditResponse[]
+  evidenceItems   EvidenceItem[]
+  findings        Finding[]
+  recommendations Recommendation[]
+  experiments     Experiment[]
+  exports         Export[]
+
+  @@index([brandId])
+  @@index([templateId])
+  @@index([auditDate])
+  @@index([overallRisk])
+}
+
+model AuditResponse {
+  id              String          @id @default(cuid())
+  auditId         String
+  criteriaId      String
+  score0To5       Int
+  normalizedScore Float
+  riskLevel       RiskLevel?
+  confidence      ConfidenceLevel @default(LOW)
+  notes           String?
+  responseData    Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  audit         Audit          @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  criteria      AuditCriteria  @relation(fields: [criteriaId], references: [id], onDelete: Restrict)
+  evidenceItems EvidenceItem[]
+  findings      Finding[]
+
+  @@unique([auditId, criteriaId])
+  @@index([auditId])
+  @@index([criteriaId])
+  @@index([confidence])
+  @@index([riskLevel])
+}
+
+model EvidenceItem {
+  id               String   @id @default(cuid())
+  auditId          String
+  auditResponseId  String?
+  findingId        String?
+  recommendationId String?
+  experimentId     String?
+  title            String
+  description      String?
+  source           String?
+  url              String?
+  fileReference    String?
+  metricName       String?
+  metricValue      Decimal? @db.Decimal(18, 4)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  audit          Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditResponse  AuditResponse?  @relation(fields: [auditResponseId], references: [id], onDelete: SetNull)
+  finding        Finding?        @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  experiment     Experiment?     @relation(fields: [experimentId], references: [id], onDelete: SetNull)
+
+  @@index([auditId])
+  @@index([auditResponseId])
+  @@index([findingId])
+  @@index([recommendationId])
+  @@index([experimentId])
+}
+
+model Finding {
+  id                 String          @id @default(cuid())
+  auditId            String
+  auditResponseId    String?
+  sectionKey         AuditSectionKey
+  title              String
+  description        String
+  evidence           String
+  severity           Severity
+  confidence         ConfidenceLevel @default(LOW)
+  businessImpact     String
+  relatedMetricName  String?
+  relatedMetricValue Decimal?        @db.Decimal(18, 4)
+  status             FindingStatus   @default(DRAFT)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  audit           Audit            @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditResponse   AuditResponse?   @relation(fields: [auditResponseId], references: [id], onDelete: SetNull)
+  recommendations Recommendation[]
+  evidenceItems   EvidenceItem[]
+
+  @@index([auditId])
+  @@index([auditResponseId])
+  @@index([sectionKey])
+  @@index([severity])
+  @@index([confidence])
+  @@index([status])
+}
+
+model Recommendation {
+  id             String               @id @default(cuid())
+  auditId        String
+  findingId      String
+  title          String
+  rationale      String
+  expectedImpact String
+  effort         Int
+  priority       Priority
+  suggestedOwner SuggestedOwner
+  confidence     ConfidenceLevel      @default(MEDIUM)
+  status         RecommendationStatus @default(DRAFT)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  audit         Audit          @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  finding       Finding        @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  evidenceItems EvidenceItem[]
+  experiments   Experiment[]
+
+  @@index([auditId])
+  @@index([findingId])
+  @@index([priority])
+  @@index([suggestedOwner])
+  @@index([confidence])
+  @@index([status])
+}
+
+model Experiment {
+  id               String           @id @default(cuid())
+  auditId          String
+  recommendationId String?
+  funnelStage      String
+  problemObserved  String
+  evidence         String
+  hypothesis       String
+  proposedChange   String
+  primaryMetric    String
+  secondaryMetric  String?
+  impact           Int
+  confidenceScore  Int
+  ease             Int
+  effort           Int
+  priorityScore    Int
+  owner            SuggestedOwner
+  status           ExperimentStatus @default(BACKLOG)
+  result           String?
+  learning         String?
+  nextAction       String?
+  deadline         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  audit          Audit           @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+  evidenceItems  EvidenceItem[]
+
+  @@index([auditId])
+  @@index([recommendationId])
+  @@index([owner])
+  @@index([status])
+  @@index([priorityScore])
+}
+
+model Export {
+  id         String     @id @default(cuid())
+  auditId    String
+  exportType ExportType
+  fileName   String
+  rowCount   Int        @default(0)
+  exportedAt DateTime   @default(now())
+  notes      String?
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([exportType])
+  @@index([exportedAt])
+}
